@@ -1,0 +1,298 @@
+<html ng-app="eisenhowerApp">
+  <head>
+    <meta charset="utf-8">
+    <title>Eisenhower Way to GTD</title>
+	<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/angular.js/1.2.1/angular.min.js"></script>
+	<script>
+	  var clientId = '471748507800-4b759pdgtmq7ng5i7q3kl1jpr51bs8t5';
+	  var apiKey = 'AIzaSyBsgw80vy6f2_n6o7igE7ixl9oTcFJ8NZY';
+	  var scopes = 'https://www.googleapis.com/auth/tasks';
+	  var currentList = {};
+	  currentList.Title = 'Eisen-InU';
+	  currentList.Id = '';
+	  var tasks = [];
+	  
+	  function handleClientLoad() {
+		gapi.client.setApiKey(apiKey);
+		window.setTimeout(checkAuth,1);
+	  }
+	  
+	  function checkAuth() {
+		gapi.auth.authorize({client_id: clientId, scope: scopes, immediate: true}, handleAuthResult);
+	  }
+	  
+	  function handleAuthResult(authResult) {
+		var authorizeButton = document.getElementById('authorize-button');
+		if (authResult && !authResult.error) {
+		  authorizeButton.innerHTML = 'Authorized';
+		  authorizeButton.disabled = true;
+		  console.log(authResult);
+		  makeApiCall();
+		} else {
+		  authorizeButton.style.visibility = '';
+		  authorizeButton.onclick = handleAuthClick;
+		}
+	  }
+
+	  function handleAuthClick(event) {
+		gapi.auth.authorize({client_id: clientId, scope: scopes, immediate: false}, handleAuthResult);
+		return false;
+	  }
+
+	  // Load the API and make an API call.  Display the results on the screen.
+	  function makeApiCall() {
+	  
+		var restRequest = gapi.client.request({
+		  'path': '/tasks/v1/users/@me/lists',
+		  'method': 'GET'
+		});
+		
+		restRequest.then(function(resp) {
+		  //console.log(resp.result.items[1].title);
+		  findList(resp.result);
+		});
+	  }
+	  
+	  <!-- Library starts here -->
+	  function findList(objs) {
+		//console.log(objs.items);
+		found = false;
+		for(var i = 0; i < objs.items.length; i++) {
+			var obj = objs.items[i];
+			//console.log(obj.id + " " + obj.title);
+			if (obj.title === currentList.Title) {
+				console.log("Found " + currentList.Title);
+				currentList.Id = obj.id;
+				found = true;
+			}
+		}
+		if (!found) {
+			alert(currentList.Title + " list has not been setup. Please run index.html first.");
+			console.log("Didn't find " + currentList.Title + ". Please run /index.html for the setup.");
+		} else {
+			getTasksInList();
+		}
+	  }
+	  
+	  function getTasksInList() {
+		var restRequest = gapi.client.request({
+		  'path': '/tasks/v1/lists/' + currentList.Id + '/tasks',
+		  'method': 'GET',
+		});
+		restRequest.then(function(resp) {
+		  //console.log(resp.result);
+		  if (resp.result.items) {
+			//console.log(resp.result.items);
+		    //currentList.Items = resp.result.items;
+			objs = resp.result;
+			for(var i = 0; i < objs.items.length; i++) {
+				var obj = objs.items[i];
+				//console.log(obj.id + " " + obj.title + " " + obj.notes);
+
+				// only adding tasks that are incomplete
+				if (obj.status == "needsAction") {
+					tasks.push({"id":obj.id, "name":obj.title, "description":obj.notes, "completed":false});
+				}
+			}		
+			//console.log(tasks);
+			var loadButton = document.getElementById("load-tasks")
+			loadButton.style.background = '#ff0000';
+			loadButton.disabled = false;
+		  }
+		});
+	  }
+	  
+	  function addTaskToGoogle(tName, tDescription) {
+		var restRequest = gapi.client.request({
+		  'path': '/tasks/v1/lists/' + currentList.Id + "/tasks",
+		  'method': 'POST',
+		  'body': {"title": tName, "notes": tDescription}
+		});
+		restRequest.then(function(resp) {
+		  //console.log(resp.result);
+		  if (resp.result.id) {
+			console.log("Task created successfully");
+		  }
+		  // don't need to add this to main tasks
+		  //tasks.push({"id":resp.result.id, "name":tName, "description":tDescription});
+		});
+	  }
+	  
+	  function removeTaskFromGoogle(task) {
+	    // getAll Tasks from Google
+		tasks = [];
+		var restRequest = gapi.client.request({
+		  'path': '/tasks/v1/lists/' + currentList.Id + '/tasks',
+		  'method': 'GET',
+		});
+		restRequest.then(function(resp) {
+			tasks = resp.result.items;
+			//console.log("Getting all tasks");
+			//console.log(tasks);
+
+			// find this task
+			taskTBD = undefined;
+			//console.log('task to be deleted ' + task.name);
+			for (var i = 0; i < tasks.length; i++) {
+				//console.log(tasks[i].name);
+				if (tasks[i].title == task.name) { 
+					taskTBD = tasks[i];
+					//console.log("Found taskTBD " + tasks[i].id );
+				}
+			}
+			// delete it
+			if (taskTBD) {
+				restRequest = gapi.client.request({
+				  'path': '/tasks/v1/lists/' + currentList.Id + '/tasks/' + taskTBD.id,
+				  'method': 'DELETE'
+				});
+				restRequest.then(function(resp) {
+					//console.log(resp);
+					if (resp.body == '')
+						console.log("Task deleted successfully");
+				});
+			}
+		});
+	  }
+	  
+	  function updateTaskToGoogle(task) {
+		// getAll Tasks from Google
+		tasks = [];
+		var restRequest = gapi.client.request({
+		  'path': '/tasks/v1/lists/' + currentList.Id + '/tasks',
+		  'method': 'GET',
+		});
+		restRequest.then(function(resp) {
+			tasks = resp.result.items;
+			//console.log("Getting all tasks");
+			//console.log(tasks);
+
+			// find this task
+			taskTBC = undefined;
+			//console.log('task to be deleted ' + task.name);
+			for (var i = 0; i < tasks.length; i++) {
+				//console.log(tasks[i].name);
+				if (tasks[i].title == task.name) { 
+					taskTBC = tasks[i];
+					//console.log("Found taskTBC " + tasks[i].id );
+				}
+			}
+			// update it
+			if (taskTBC) {
+				if (task.completed)
+					taskTBC.status = "completed";
+				else
+					taskTBC.status = "needsAction";
+				restRequest = gapi.client.request({
+				  'path': '/tasks/v1/lists/' + currentList.Id + '/tasks/' + taskTBC.id,
+				  'method': 'PUT',
+				  'body': taskTBC
+				});
+				restRequest.then(function(resp) {
+					console.log(resp);
+					//if (resp.body == '')
+					//	console.log("Task deleted successfully");
+				});
+			}
+		});
+	  }
+	  
+	var eisenhowerApp = angular.module('eisenhowerApp', []);
+	  eisenhowerApp.controller('List-Ctrl', function ($scope){
+		$scope.tasks = tasks;
+
+		$scope.addTask = function() {
+		  if ($scope.enteredName) {
+			  $scope.tasks.unshift({"name":$scope.enteredName, "description":$scope.enteredDesc, "completed":false});
+			  addTaskToGoogle($scope.enteredName, $scope.enteredDesc);
+			  
+			  $scope.enteredName = '';
+			  $scope.enteredDesc = '';
+		  } else {
+			alert("Name cannot be empty!");
+		  }
+		};
+
+		$scope.removeTask = function(task) {
+		  var i = $scope.tasks.indexOf(task);
+		  $scope.tasks.splice(i, 1);
+		  
+		  removeTaskFromGoogle(task);
+		};
+		
+		$scope.updateTasks = function() {
+		  var loadButton = document.getElementById("load-tasks");
+		  loadButton.disabled = true;
+		  loadButton.style.background='#eeeeee';
+		  loadButton.innerHTML = 'Loaded from Google';
+		}
+		
+		$scope.handleCheck = function(task) {
+		  var i = $scope.tasks.indexOf(task);
+		  if (task.completed)
+			$scope.tasks[i].completed = false;
+		  else
+			$scope.tasks[i].completed = true;
+			
+		  updateTaskToGoogle($scope.tasks[i]);
+		}
+		
+	  });
+
+    </script>
+	<script src="https://apis.google.com/js/client.js?onload=handleClientLoad"></script>
+  </head>
+  <body>
+	  <div class="Auth">
+		<button id="authorize-button" class="auth-button">Authorize</button>
+		to use Google Tasks. Press red button to start.
+
+	  </div>
+	  
+	  <hr/>
+	  
+	  <div id="navBar" style="background-color:#222222">
+		<p align="center">
+		  <a href="/list/IU" style="color:#bbbb00">[ Important and Urgent ]</a>.     .
+		  <a href="/list/InU" style="color:#ff0000">[ Important but Not Urgent ]</a>.     .
+		  <a href="/list/nIU" style="color:#0066ff">[ Not Important but Urgent ]</a>.     .
+		  <a href="/list/nInU" style="color:#00bb00">[ Not Important and Not Urgent ]</a>
+		</p>
+	  </div>
+	  
+	  <hr/>
+	  
+	  <div id="u-i" align="center" ng-controller="List-Ctrl">
+	    <h1>Important but Not Urgent
+		<button id="load-tasks" ng-click="updateTasks()" disabled>Load from Google</button>
+		</h1>
+		<table>
+		  <tr>
+			<th>Name</th>
+			<th>Description</th>
+			<th>Complete</th>
+			<th>Delete</th>
+		  </tr>
+		  <form ng-submit="addTask()">
+			<tr>
+			  <td><input type="text" ng-model="enteredName"></td>
+			  <td><input type="text" ng-model="enteredDesc"></td>
+			  <td><input type="submit" value="Add"></td>
+			  <td></td>
+			</tr>
+		  </form>
+		  <tr ng-repeat="task in tasks">
+			<td>{{task.name}}</td>
+			<td>{{task.description}}</td>
+			<td><input type="checkbox" ng-click="handleCheck(task)"></td>
+			<td><a href="" ng-click="removeTask(task)">[x]</a></td>
+		  </tr>
+		</table>
+	  </div>
+	  
+	  <hr/>
+	  
+	  <div id="content">
+	  </div>
+  </body>
+</html>

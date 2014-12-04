@@ -1,0 +1,136 @@
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Eisenhower</title>
+	<script type="text/javascript" src="//cdnjs.cloudflare.com/ajax/libs/angular.js/1.2.1/angular.min.js"></script>
+	<script>
+	  var clientId = '471748507800-4b759pdgtmq7ng5i7q3kl1jpr51bs8t5';
+	  var apiKey = 'AIzaSyBsgw80vy6f2_n6o7igE7ixl9oTcFJ8NZY';
+	  var scopes = 'https://www.googleapis.com/auth/tasks';
+
+	  var iuTitle = 'Eisen-IU';
+	  var inuTitle = 'Eisen-InU';
+	  var niuTitle = 'Eisen-nIU';
+	  var ninuTitle = 'Eisen-nInU';
+	  
+	  function handleClientLoad() {
+		gapi.client.setApiKey(apiKey);
+		window.setTimeout(checkAuth,1);
+	  }
+	  
+	  function checkAuth() {
+		gapi.auth.authorize({client_id: clientId, scope: scopes, immediate: true}, handleAuthResult);
+	  }
+	  
+	  function handleAuthResult(authResult) {
+		var authorizeButton = document.getElementById('authorize-button');
+		if (authResult && !authResult.error) {
+		  authorizeButton.innerHTML = 'Authorized';
+		  authorizeButton.disabled = true;
+		  console.log("Connection to Google successful.")
+		  console.log(authResult);
+		  makeApiCall();
+		} else {
+		  authorizeButton.style.visibility = '';
+		  authorizeButton.onclick = handleAuthClick;
+		}
+	  }
+
+	  function handleAuthClick(event) {
+		gapi.auth.authorize({client_id: clientId, scope: scopes, immediate: false}, handleAuthResult);
+		return false;
+	  }
+
+	  // Load the API and make an API call.  Display the results on the screen.
+	  function makeApiCall() {
+	  
+		var restRequest = gapi.client.request({
+		  'path': '/tasks/v1/users/@me/lists',
+		  'method': 'GET'
+		});
+		
+		restRequest.then(function(resp) {
+		  //console.log(resp.result.items[1].title);
+		  findList(resp.result, iuTitle);
+		  findList(resp.result, inuTitle);
+		  findList(resp.result, niuTitle);
+		  findList(resp.result, ninuTitle);
+		});
+	  }
+	  
+	  <!-- Library starts here -->
+	  function findList(objs, listTitle) {
+		//console.log(objs.items);
+		found = false;
+		for(var i = 0; i < objs.items.length; i++) {
+			var obj = objs.items[i];
+			//console.log(obj.id + " " + obj.title);
+			if (obj.title == listTitle) {
+				console.log("Found " + listTitle);
+				found = true;
+				break;
+			}
+		}
+		if (!found) {
+			console.log("Didn't find " + listTitle + ". Creating New.");
+			createList(listTitle);
+		}
+	  }
+	  
+	  function createList(listTitle) {
+	    var restRequest = gapi.client.request({
+		  'path': '/tasks/v1/users/@me/lists',
+		  'method': 'POST',
+		  'body': {"title": listTitle}
+		});
+		restRequest.then(function(resp) {
+		  console.log("List " + listTitle + " created successfully");
+		  currentListId = resp.result.id;
+		  createDemoTask(currentListId);
+	    });
+	  }
+	  
+	  function createDemoTask(listId) {
+		var restRequest = gapi.client.request({
+		  'path': '/tasks/v1/lists/' + listId + "/tasks",
+		  'method': 'POST',
+		  'body': {"title": "Demo Task", "notes": "some description"}
+		});
+		restRequest.then(function(resp) {
+		  //console.log(resp.result);
+		  if (resp.result.id) {
+			console.log("Task created successfully");
+		  }
+
+		});
+
+	  }
+	  
+	  </script>
+		<script src="https://apis.google.com/js/client.js?onload=handleClientLoad"></script>
+  </head>
+  <body>
+	  <div class="OAuth">
+		<button id="authorize-button" class="auth-button">Authorize</button>
+		to use Google Tasks
+	  </div>
+	  <hr/>
+	  <div id="content">
+	  <div id="navBar" style="background-color:#222222">
+		<p align="center">
+		  <a href="/list/IU" style="color:#bbbb00">[ Important and Urgent ]</a>.     .
+		  <a href="/list/InU" style="color:#ff0000">[ Important but Not Urgent ]</a>.     .
+		  <a href="/list/nIU" style="color:#0066ff">[ Not Important but Urgent ]</a>.     .
+		  <a href="/list/nInU" style="color:#00bb00">[ Not Important and Not Urgent ]</a>
+		</p>
+	  </div>
+	  
+	  <hr/>
+	  
+	  <p align="center">
+		  <img src="https://31.media.tumblr.com/52f7e4f08aeb4583b3a132c5fe57decd/tumblr_inline_n0zatcCfin1qhg0wt.png"></img>
+	  </p>
+	  
+	  </div>
+  </body>
+</html>
